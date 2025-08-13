@@ -4,14 +4,13 @@ import json
 
 TOKEN = "8083798896:AAEgGBINdsJ25yeGGSI0P0IksZ5LnmKGEMY"
 GROUP_ID = -1002649082844
-ADMIN_ID = 7112140383  # رقم المشرف
+ADMIN_ID = 7112140383
 
 bot = telebot.TeleBot(TOKEN)
 
 REFERRALS_FILE = "referrals.json"
 BUTTONS_FILE = "buttons.json"
 
-# تحميل بيانات الإحالات
 def load_referrals():
     try:
         with open(REFERRALS_FILE, "r", encoding="utf-8") as f:
@@ -23,7 +22,6 @@ def save_referrals(data):
     with open(REFERRALS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-# تحميل أزرار لوحة التحكم
 def load_buttons():
     try:
         with open(BUTTONS_FILE, "r", encoding="utf-8") as f:
@@ -55,24 +53,13 @@ def build_markup():
             markup.add(InlineKeyboardButton(btn["text"], callback_data=btn.get("callback_data", "none")))
     return markup
 
-# دالة لتحديد رتبة المستخدم حسب عدد الإحالات
-def get_rank(ref_count):
-    if ref_count >= 15:
-        return "المميز Ultimate"
-    elif ref_count >= 10:
-        return "نجم Ultimate"
-    elif ref_count >= 5:
-        return "متوسط"
-    elif ref_count >= 2:
-        return "مبتدئ"
-    else:
-        return "جديد"
-
 @bot.message_handler(commands=['start'])
 def start_handler(message):
     args = message.text.split()
     user_id = str(message.from_user.id)
-    username = message.from_user.username or f"@{message.from_user.first_name}"
+    username = message.from_user.username
+    if not username:
+        username = f"@{message.from_user.first_name}"
 
     if user_id not in referrals:
         referrals[user_id] = {"username": username, "refs": []}
@@ -89,7 +76,6 @@ def start_handler(message):
                 bot.send_message(ref_id, f"🎉 لديك إحالة جديدة من @{username}!")
                 bot.send_message(ADMIN_ID, f"📢 إحالة جديدة:\n@{username} من طرف {ref_username}")
 
-                # رسالة تهنئة عند وصول 5 إحالات
                 if len(referrals[ref_id]["refs"]) == 5:
                     bot.send_message(ref_id, "🎉 تهانينا! لقد وصلت إلى 5 إحالات ناجحة! استمر في النجاح 🎉")
 
@@ -154,8 +140,7 @@ def callback_handler(call):
             for i, (uid, data) in enumerate(top, start=1):
                 uname = data.get("username", f"@{uid}")
                 count = len(data["refs"])
-                rank = get_rank(count)
-                text += f"{i}. {uname} - {count} إحالة - رتبة: {rank}\n"
+                text += f"{i}. {uname} - {count} إحالة\n"
         bot.send_message(call.message.chat.id, text)
 
     elif call.data == "show_myref":
@@ -183,7 +168,11 @@ def add_button_handler(message):
         return
     text_btn = parts[1]
     link_or_data = parts[2]
-    buttons.append({"text": text_btn, "url": link_or_data})
+    # إذا الرابط يبدأ بـ http أو https يعتبر url وإلا callback_data
+    if link_or_data.startswith("http"):
+        buttons.append({"text": text_btn, "url": link_or_data})
+    else:
+        buttons.append({"text": text_btn, "callback_data": link_or_data})
     save_buttons(buttons)
     bot.reply_to(message, f"تم إضافة الزر: {text_btn}")
 
@@ -216,35 +205,9 @@ def broadcast_handler(message):
             print(f"خطأ في إرسال رسالة إلى {user_id}: {e}")
     bot.reply_to(message, f"تم إرسال الرسالة إلى {count} مستخدم.")
 
-@bot.message_handler(commands=['stats'])
-def stats_handler(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "أنت لست مشرفًا لاستخدام هذا الأمر.")
-        return
-
-    total_users = len(referrals)
-    total_refs = sum(len(data.get("refs", [])) for data in referrals.values())
-    sorted_refs = sorted(referrals.items(), key=lambda x: len(x[1].get("refs", [])), reverse=True)
-    top5 = sorted_refs[:5]
-
-    text = f"📊 إحصائيات النظام:\n- عدد الأعضاء: {total_users}\n- مجموع الإحالات: {total_refs}\n\n🏆 أفضل 5 أعضاء:\n"
-    for i, (uid, data) in enumerate(top5, start=1):
-        uname = data.get("username", f"@{uid}")
-        count = len(data.get("refs", []))
-        rank = get_rank(count)
-        text += f"{i}. {uname} - {count} إحالة - رتبة: {rank}\n"
-
-    bot.send_message(message.chat.id, text)
-
-@bot.message_handler(commands=['levels'])
-def levels_handler(message):
-    if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "أنت لست مشرفًا لاستخدام هذا الأمر.")
-        return
-
-    counts = {"المميز Ultimate":0, "نجم Ultimate":0, "متوسط":0, "مبتدئ":0, "جديد":0}
-
-    for data in referrals.values():
-        ref_count = len(data.get("refs", []))
-        rank = get_rank(ref_count)
-        counts[rank]
+if __name__ == "__main__":
+    while True:
+        try:
+            bot.infinity_polling()
+        except Exception as e:
+            print(f"Error: {e}")
