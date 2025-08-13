@@ -4,11 +4,14 @@ import json
 
 TOKEN = "8083798896:AAEgGBINdsJ25yeGGSI0P0IksZ5LnmKGEMY"
 GROUP_ID = -1002649082844
-ADMIN_ID = 7112140383
+ADMIN_ID = 7112140383  # رقم المشرف
 
 bot = telebot.TeleBot(TOKEN)
-REFERRALS_FILE = "referrals.json"
 
+REFERRALS_FILE = "referrals.json"
+BUTTONS_FILE = "buttons.json"
+
+# تحميل بيانات الإحالات
 def load_referrals():
     try:
         with open(REFERRALS_FILE, "r", encoding="utf-8") as f:
@@ -20,22 +23,59 @@ def save_referrals(data):
     with open(REFERRALS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-referrals = load_referrals()
+# تحميل أزرار لوحة التحكم
+def load_buttons():
+    try:
+        with open(BUTTONS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return [
+            {"text": "🔗 دخول المجموعة", "url": "https://t.me/+cVAKJyQd-e84ZDk0"},
+            {"text": "📞 الدعم الفني", "url": "https://t.me/prohacker41"},
+            {"text": "📜 قوانين المجموعة", "callback_data": "show_rules"},
+            {"text": "ℹ️ تعريف الشركة", "callback_data": "show_company"},
+            {"text": "👥 إحالاتي", "callback_data": "show_refs"},
+            {"text": "🏆 أفضل 3 أعضاء", "callback_data": "show_top"},
+            {"text": "🔗 رابط إحالة", "callback_data": "show_myref"}
+        ]
 
-def format_username(user):
-    if user.username:
-        return f"@{user.username}"
+def save_buttons(buttons):
+    with open(BUTTONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(buttons, f, ensure_ascii=False, indent=2)
+
+referrals = load_referrals()
+buttons = load_buttons()
+
+def build_markup():
+    markup = InlineKeyboardMarkup(row_width=2)
+    for btn in buttons:
+        if "url" in btn:
+            markup.add(InlineKeyboardButton(btn["text"], url=btn["url"]))
+        else:
+            markup.add(InlineKeyboardButton(btn["text"], callback_data=btn.get("callback_data", "none")))
+    return markup
+
+# دالة لتحديد رتبة المستخدم حسب عدد الإحالات
+def get_rank(ref_count):
+    if ref_count >= 15:
+        return "المميز Ultimate"
+    elif ref_count >= 10:
+        return "نجم Ultimate"
+    elif ref_count >= 5:
+        return "متوسط"
+    elif ref_count >= 2:
+        return "مبتدئ"
     else:
-        return f"@{user.first_name}"
+        return "جديد"
 
 @bot.message_handler(commands=['start'])
 def start_handler(message):
     args = message.text.split()
     user_id = str(message.from_user.id)
-    username_display = format_username(message.from_user)
+    username = message.from_user.username or f"@{message.from_user.first_name}"
 
     if user_id not in referrals:
-        referrals[user_id] = {"username": message.from_user.username or message.from_user.first_name, "refs": []}
+        referrals[user_id] = {"username": username, "refs": []}
 
         if len(args) > 1:
             ref_id = args[1]
@@ -43,37 +83,25 @@ def start_handler(message):
                 referrals[ref_id]["refs"].append(user_id)
                 save_referrals(referrals)
 
-                ref_display = f"@{referrals[ref_id]['username']}" if referrals[ref_id]['username'] else f"@{ref_id}"
+                ref_username = referrals.get(ref_id, {}).get("username", f"@{ref_id}")
+                text = f"🎉 تم إحالة @{username} من طرف {ref_username}."
+                bot.send_message(GROUP_ID, text)
+                bot.send_message(ref_id, f"🎉 لديك إحالة جديدة من @{username}!")
+                bot.send_message(ADMIN_ID, f"📢 إحالة جديدة:\n@{username} من طرف {ref_username}")
 
-                # إحالة جديدة إلى المجموعة
-                bot.send_message(GROUP_ID, f"🎉 تم إحالة {username_display} من طرف {ref_display}.")
-
-                # تهنئة عند 5 إحالات مباشرة
+                # رسالة تهنئة عند وصول 5 إحالات
                 if len(referrals[ref_id]["refs"]) == 5:
-                    bot.send_message(ref_id, "🎊 مبروك! لقد حصلت على 5 إحالات مباشرة!")
-
-                # إشعار المُحيل
-                bot.send_message(ref_id, f"🎉 لديك إحالة جديدة من {username_display}!")
-
-    markup = InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        InlineKeyboardButton("🔗 دخول المجموعة", url="https://t.me/+cVAKJyQd-e84ZDk0"),
-        InlineKeyboardButton("📞 الدعم الفني", url="https://t.me/prohacker41"),
-        InlineKeyboardButton("📜 قوانين المجموعة", callback_data="show_rules"),
-        InlineKeyboardButton("ℹ️ تعريف الشركة", callback_data="show_company"),
-        InlineKeyboardButton("👥 إحالاتي", callback_data="show_refs"),
-        InlineKeyboardButton("🏆 أفضل3 الأعضاء", callback_data="show_top"),
-        InlineKeyboardButton("🔗 رابط إحالة", callback_data="show_myref")
-    )
+                    bot.send_message(ref_id, "🎉 تهانينا! لقد وصلت إلى 5 إحالات ناجحة! استمر في النجاح 🎉")
 
     welcome_text = f"""\
-مرحبًا بك {username_display} 👋
+مرحبًا بك @{username} 👋
 
 هذا بوت خاص بنظام الإحالات لشركة Ultimate.
 
 لتتعرف على المزيد، استخدم الأزرار بالأسفل.
 """
-    bot.send_message(message.chat.id, welcome_text, reply_markup=markup)
+
+    bot.send_message(message.chat.id, welcome_text, reply_markup=build_markup())
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -106,7 +134,10 @@ def callback_handler(call):
             if count == 0:
                 text = "ليس لديك أي إحالات حتى الآن."
             else:
-                names = [f"@{referrals.get(uid, {}).get('username', uid)}" for uid in user_refs]
+                names = []
+                for uid in user_refs:
+                    uname = referrals.get(uid, {}).get("username", f"@{uid}")
+                    names.append(f"{uname}")
                 text = f"لديك {count} إحالة:\n" + "\n".join(names)
         else:
             text = "لم يتم تسجيلك في نظام الإحالات بعد. اضغط /start."
@@ -121,45 +152,99 @@ def callback_handler(call):
         else:
             text = "🏆 أفضل 3 أعضاء حسب الإحالات:\n"
             for i, (uid, data) in enumerate(top, start=1):
-                uname = data.get("username", uid)
+                uname = data.get("username", f"@{uid}")
                 count = len(data["refs"])
-                text += f"{i}. @{uname} - {count} إحالة\n"
+                rank = get_rank(count)
+                text += f"{i}. {uname} - {count} إحالة - رتبة: {rank}\n"
         bot.send_message(call.message.chat.id, text)
 
     elif call.data == "show_myref":
         bot.answer_callback_query(call.id)
         bot_username = bot.get_me().username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
-        bot.send_message(call.message.chat.id, f"🔗 رابط إحالتك الخاص:\n{ref_link}")
+        text = f"🔗 رابط إحالتك الخاص:\n{ref_link}\n\nشارك هذا الرابط مع أصدقائك ليقوموا بالضغط عليه ويصبحوا من إحالاتك."
+        bot.send_message(call.message.chat.id, text)
 
-@bot.message_handler(commands=['allrefs'])
-def all_refs_handler(message):
-    if message.from_user.id == ADMIN_ID:
-        text = "📋 جميع الإحالات:\n"
-        for uid, data in referrals.items():
-            uname = data.get("username", uid)
-            count = len(data["refs"])
-            text += f"{uid} (@{uname}): {count} إحالة\n"
-        bot.send_message(message.chat.id, text)
+@bot.message_handler(commands=['ref'])
+def ref_handler(message):
+    user_id = str(message.from_user.id)
+    bot_username = bot.get_me().username
+    ref_link = f"https://t.me/{bot_username}?start={user_id}"
+    bot.send_message(message.chat.id, f"🔗 رابط إحالتك الخاص:\n{ref_link}")
+
+@bot.message_handler(commands=['addbutton'])
+def add_button_handler(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "ليس لديك صلاحية لاستخدام هذا الأمر.")
+        return
+    parts = message.text.split(maxsplit=2)
+    if len(parts) < 3:
+        bot.reply_to(message, "الاستخدام: /addbutton نص_الزر رابط_أو_callback_data")
+        return
+    text_btn = parts[1]
+    link_or_data = parts[2]
+    buttons.append({"text": text_btn, "url": link_or_data})
+    save_buttons(buttons)
+    bot.reply_to(message, f"تم إضافة الزر: {text_btn}")
+
+@bot.message_handler(commands=['buttons'])
+def show_buttons_handler(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "ليس لديك صلاحية لاستخدام هذا الأمر.")
+        return
+    text = "الأزرار الحالية:\n"
+    for i, btn in enumerate(buttons, start=1):
+        text += f"{i}. {btn['text']} - {btn.get('url', btn.get('callback_data', ''))}\n"
+    bot.send_message(message.chat.id, text)
+
+@bot.message_handler(commands=['broadcast'])
+def broadcast_handler(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "ليس لديك صلاحية لاستخدام هذا الأمر.")
+        return
+    text = message.text[len('/broadcast '):].strip()
+    if not text:
+        bot.reply_to(message, "اكتب نص الرسالة بعد الأمر.")
+        return
+    
+    count = 0
+    for user_id in referrals.keys():
+        try:
+            bot.send_message(user_id, text)
+            count += 1
+        except Exception as e:
+            print(f"خطأ في إرسال رسالة إلى {user_id}: {e}")
+    bot.reply_to(message, f"تم إرسال الرسالة إلى {count} مستخدم.")
 
 @bot.message_handler(commands=['stats'])
 def stats_handler(message):
-    if message.from_user.id == ADMIN_ID:
-        total_users = len(referrals)
-        total_refs = sum(len(data["refs"]) for data in referrals.values())
-        bot.send_message(message.chat.id, f"👥 عدد المستخدمين: {total_users}\n🔗 مجموع الإحالات: {total_refs}")
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "أنت لست مشرفًا لاستخدام هذا الأمر.")
+        return
 
-@bot.message_handler(commands=['reset'])
-def reset_handler(message):
-    if message.from_user.id == ADMIN_ID:
-        parts = message.text.split()
-        if len(parts) > 1:
-            target_id = parts[1]
-            if target_id in referrals:
-                referrals[target_id]["refs"] = []
-                save_referrals(referrals)
-                bot.send_message(message.chat.id, f"✅ تم مسح إحالات {target_id}")
-            else:
-                bot.send_message(message.chat.id, "❌ المستخدم غير موجود")
+    total_users = len(referrals)
+    total_refs = sum(len(data.get("refs", [])) for data in referrals.values())
+    sorted_refs = sorted(referrals.items(), key=lambda x: len(x[1].get("refs", [])), reverse=True)
+    top5 = sorted_refs[:5]
 
-bot.infinity_polling()
+    text = f"📊 إحصائيات النظام:\n- عدد الأعضاء: {total_users}\n- مجموع الإحالات: {total_refs}\n\n🏆 أفضل 5 أعضاء:\n"
+    for i, (uid, data) in enumerate(top5, start=1):
+        uname = data.get("username", f"@{uid}")
+        count = len(data.get("refs", []))
+        rank = get_rank(count)
+        text += f"{i}. {uname} - {count} إحالة - رتبة: {rank}\n"
+
+    bot.send_message(message.chat.id, text)
+
+@bot.message_handler(commands=['levels'])
+def levels_handler(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "أنت لست مشرفًا لاستخدام هذا الأمر.")
+        return
+
+    counts = {"المميز Ultimate":0, "نجم Ultimate":0, "متوسط":0, "مبتدئ":0, "جديد":0}
+
+    for data in referrals.values():
+        ref_count = len(data.get("refs", []))
+        rank = get_rank(ref_count)
+        counts[rank]
