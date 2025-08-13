@@ -4,13 +4,14 @@ import json
 
 TOKEN = "8083798896:AAEgGBINdsJ25yeGGSI0P0IksZ5LnmKGEMY"
 GROUP_ID = -1002649082844
-ADMIN_ID = 7112140383
+ADMIN_ID = 7112140383  # رقم المشرف
 
 bot = telebot.TeleBot(TOKEN)
 
 REFERRALS_FILE = "referrals.json"
 BUTTONS_FILE = "buttons.json"
 
+# تحميل بيانات الإحالات
 def load_referrals():
     try:
         with open(REFERRALS_FILE, "r", encoding="utf-8") as f:
@@ -22,6 +23,7 @@ def save_referrals(data):
     with open(REFERRALS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+# تحميل أزرار لوحة التحكم
 def load_buttons():
     try:
         with open(BUTTONS_FILE, "r", encoding="utf-8") as f:
@@ -57,9 +59,7 @@ def build_markup():
 def start_handler(message):
     args = message.text.split()
     user_id = str(message.from_user.id)
-    username = message.from_user.username
-    if not username:
-        username = f"@{message.from_user.first_name}"
+    username = message.from_user.username or f"@{message.from_user.first_name}"
 
     if user_id not in referrals:
         referrals[user_id] = {"username": username, "refs": []}
@@ -113,27 +113,26 @@ def callback_handler(call):
 """)
 
     elif call.data == "show_refs":
-    bot.answer_callback_query(call.id)
-    if user_id in referrals:
-        user_refs = referrals[user_id]["refs"]
-        count = len(user_refs)
-        if count == 0:
-            text = "ليس لديك أي إحالات حتى الآن."
+        bot.answer_callback_query(call.id)
+        if user_id in referrals:
+            user_refs = referrals[user_id]["refs"]
+            count = len(user_refs)
+            if count == 0:
+                text = "ليس لديك أي إحالات حتى الآن."
+            else:
+                names = []
+                for uid in user_refs:
+                    uname = referrals.get(uid, {}).get("username", "")
+                    if uname.startswith("@"):
+                        uname_no_at = uname[1:]
+                    else:
+                        uname_no_at = uname
+                    # نعرض اسم المستخدم كرابط
+                    names.append(f"<a href='https://t.me/{uname_no_at}'>{uname}</a>")
+                text = f"لديك {count} إحالة:\n" + "\n".join(names)
         else:
-            names = []
-            for uid in user_refs:
-                uname = referrals.get(uid, {}).get("username", "")
-                if uname.startswith("@"):
-                    uname_no_at = uname[1:]
-                else:
-                    uname_no_at = uname
-                # نعرض اسم المستخدم كرابط
-                names.append(f"<a href='https://t.me/{uname_no_at}'>{uname}</a>")
-            text = f"لديك {count} إحالة:\n" + "\n".join(names)
-    else:
-        text = "لم يتم تسجيلك في نظام الإحالات بعد. اضغط /start."
-    bot.send_message(call.message.chat.id, text, parse_mode='HTML')
-
+            text = "لم يتم تسجيلك في نظام الإحالات بعد. اضغط /start."
+        bot.send_message(call.message.chat.id, text, parse_mode='HTML')
 
     elif call.data == "show_top":
         bot.answer_callback_query(call.id)
@@ -144,10 +143,14 @@ def callback_handler(call):
         else:
             text = "🏆 أفضل 3 أعضاء حسب الإحالات:\n"
             for i, (uid, data) in enumerate(top, start=1):
-                uname = data.get("username", f"@{uid}")
+                uname = data.get("username", "")
+                if uname.startswith("@"):
+                    uname_no_at = uname[1:]
+                else:
+                    uname_no_at = uname
                 count = len(data["refs"])
-                text += f"{i}. {uname} - {count} إحالة\n"
-        bot.send_message(call.message.chat.id, text)
+                text += f"{i}. <a href='https://t.me/{uname_no_at}'>{uname}</a> - {count} إحالة\n"
+        bot.send_message(call.message.chat.id, text, parse_mode='HTML')
 
     elif call.data == "show_myref":
         bot.answer_callback_query(call.id)
@@ -174,11 +177,7 @@ def add_button_handler(message):
         return
     text_btn = parts[1]
     link_or_data = parts[2]
-    # إذا الرابط يبدأ بـ http أو https يعتبر url وإلا callback_data
-    if link_or_data.startswith("http"):
-        buttons.append({"text": text_btn, "url": link_or_data})
-    else:
-        buttons.append({"text": text_btn, "callback_data": link_or_data})
+    buttons.append({"text": text_btn, "url": link_or_data})
     save_buttons(buttons)
     bot.reply_to(message, f"تم إضافة الزر: {text_btn}")
 
@@ -211,9 +210,4 @@ def broadcast_handler(message):
             print(f"خطأ في إرسال رسالة إلى {user_id}: {e}")
     bot.reply_to(message, f"تم إرسال الرسالة إلى {count} مستخدم.")
 
-if __name__ == "__main__":
-    while True:
-        try:
-            bot.infinity_polling()
-        except Exception as e:
-            print(f"Error: {e}")
+bot.infinity_polling()
