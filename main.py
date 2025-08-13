@@ -113,21 +113,27 @@ def callback_handler(call):
 """)
 
     elif call.data == "show_refs":
-        bot.answer_callback_query(call.id)
-        if user_id in referrals:
-            user_refs = referrals[user_id]["refs"]
-            count = len(user_refs)
-            if count == 0:
-                text = "ليس لديك أي إحالات حتى الآن."
-            else:
-                names = []
-                for uid in user_refs:
-                    uname = referrals.get(uid, {}).get("username", f"@{uid}")
-                    names.append(f"{uname}")
-                text = f"لديك {count} إحالة:\n" + "\n".join(names)
+    bot.answer_callback_query(call.id)
+    if user_id in referrals:
+        user_refs = referrals[user_id]["refs"]
+        count = len(user_refs)
+        if count == 0:
+            text = "ليس لديك أي إحالات حتى الآن."
         else:
-            text = "لم يتم تسجيلك في نظام الإحالات بعد. اضغط /start."
-        bot.send_message(call.message.chat.id, text)
+            names = []
+            for uid in user_refs:
+                uname = referrals.get(uid, {}).get("username", "")
+                if uname.startswith("@"):
+                    uname_no_at = uname[1:]
+                else:
+                    uname_no_at = uname
+                # نعرض اسم المستخدم كرابط
+                names.append(f"<a href='https://t.me/{uname_no_at}'>{uname}</a>")
+            text = f"لديك {count} إحالة:\n" + "\n".join(names)
+    else:
+        text = "لم يتم تسجيلك في نظام الإحالات بعد. اضغط /start."
+    bot.send_message(call.message.chat.id, text, parse_mode='HTML')
+
 
     elif call.data == "show_top":
         bot.answer_callback_query(call.id)
@@ -195,7 +201,7 @@ def broadcast_handler(message):
     if not text:
         bot.reply_to(message, "اكتب نص الرسالة بعد الأمر.")
         return
-    
+
     count = 0
     for user_id in referrals.keys():
         try:
