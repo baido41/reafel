@@ -1,11 +1,38 @@
+import os, shutil, json
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-import json
 
+# === إضافة الحفظ الدائم للإحالات ===
+REFERRALS_FILE = "referrals.json"
+BACKUP_FILE    = "referrals_backup.json"
+
+# إذا وجدنا نسخة احتياطية نستعيدها
+if os.path.exists(BACKUP_FILE):
+    shutil.copy(BACKUP_FILE, REFERRALS_FILE)
+
+def load_referrals():
+    try:
+        with open(REFERRALS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_referrals(data):
+    # حفظ الملف الأساسي
+    with open(REFERRALS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    # حفظ نسخة احتياطية (تبقى دائماً)
+    with open(BACKUP_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+referrals = load_referrals()
+
+# =============== باقي الكود كما هو بدون أي تغيير ===============
 TOKEN = "8083798896:AAEgGBINdsJ25yeGGSI0P0IksZ5LnmKGEMY"
-GROUP_ID = -1002649082844  # ID المجموعة هنا
-
+GROUP_ID = -1002649082844
 bot = telebot.TeleBot(TOKEN)
+
+# (باقي دوال البوت تبقى كما هي)
 
 REFERRALS_FILE = "referrals.json"
 
