@@ -1,2 +1,10 @@
 referrals.json
 referrals_backup.json
+referrals_backup/*.json
+.env
+.env.*
+__pycache__/
+*.py[cod]
+*.log
+.venv/
+venv/
